@@ -1,0 +1,25 @@
+# --- Secrets / environment ---
+# Real credentials live in backend/.env (DB password, JWT secret, seed logins).
+# Never commit them; .env.example documents the required keys instead.
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+build/
+
+# --- Editor / OS ---
+# Local planning/design notes and Claude Code settings — kept out of the repo.
+.claude/
+.vscode/settings.json
+.DS_Store
+Thumbs.db
