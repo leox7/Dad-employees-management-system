@@ -1,10 +1,9 @@
 -- =========================================
 -- Payroll System Database Schema (v2)
--- Drop and recreate from scratch
+-- 
 -- =========================================
 
-DROP DATABASE IF EXISTS payroll_db;
-CREATE DATABASE payroll_db;
+CREATE DATABASE IF NOT EXISTS payroll_db;
 USE payroll_db;
 
 -- ---------------------------------------

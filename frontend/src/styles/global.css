@@ -1,0 +1,934 @@
+@import "./tokens.css";
+
+/* ---------------------------------------------------------------------------
+   Reset & base
+   --------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* design.md §8: every interactive element gets a visible Ledger Green focus ring.
+   Applied globally rather than per-component so it can never be forgotten. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ledger-green);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+a {
+  color: var(--ledger-green);
+}
+
+/* ---------------------------------------------------------------------------
+   Typography roles (design.md §3)
+   --------------------------------------------------------------------------- */
+.page-title {
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.section-header {
+  font-size: var(--text-section);
+  font-weight: 600;
+}
+
+.caption {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite);
+}
+
+.muted {
+  color: var(--graphite);
+}
+
+/* Every currency amount in the app, with no exception (design.md §3). Tabular
+   figures are the whole point: a column of numbers lines up by place value. */
+.money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-weight: 500;
+}
+
+.money--negative {
+  color: var(--rust);
+}
+
+/* ---------------------------------------------------------------------------
+   The Ledger Line (design.md §1) — the signature motif. A hairline under every
+   row, stat, and field. This is the app's entire visual structure.
+   --------------------------------------------------------------------------- */
+.ledger-line {
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* ---------------------------------------------------------------------------
+   Layout
+   --------------------------------------------------------------------------- */
+.app-shell {
+  display: flex;
+  min-height: 100%;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0; /* lets wide tables scroll instead of stretching the layout */
+  padding: var(--content-margin);
+  max-width: 1180px;
+}
+
+.page-head {
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.page-head__welcome {
+  margin-bottom: 6px;
+}
+
+/* 150ms fade, nothing more (design.md §6). */
+.fade-in {
+  animation: fade-in var(--fade) ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Sidebar (desktop) / bottom tab bar (mobile) — design.md §4
+   --------------------------------------------------------------------------- */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--paper);
+  border-right: 1px solid var(--hairline);
+  padding: 32px 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar__brand {
+  padding: 0 24px 20px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap-target);
+  padding: 0 24px;
+  color: var(--graphite);
+  text-decoration: none;
+  font-weight: 500;
+  /* The active indicator is a Ledger Green bar; the transparent border on
+     inactive items reserves the space so nothing shifts on selection. */
+  border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+  color: var(--ink);
+}
+
+/* The icon inherits currentColor, so it turns Ledger Green with the label —
+   no separate active-state styling needed for it. */
+.nav-item--active {
+  color: var(--ledger-green);
+  border-left-color: var(--ledger-green);
+}
+
+.sidebar__foot {
+  margin-top: auto;
+  padding: 20px 24px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.bottom-bar {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons (design.md §5)
+   --------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap-target);
+  padding: 0 20px;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: none;
+  transition: background-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* One per screen, reserved for the single most important action. */
+.btn--primary {
+  background: var(--ledger-green);
+  color: var(--white);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #274d43;
+}
+
+.btn--secondary {
+  color: var(--ink);
+  border-color: var(--hairline);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: rgba(28, 32, 30, 0.04);
+}
+
+/* Always paired with a confirm step, never a single tap. */
+.btn--destructive {
+  color: var(--rust);
+  border-color: var(--hairline);
+}
+
+.btn--destructive:hover:not(:disabled) {
+  background: var(--rust-12);
+}
+
+.btn--small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: var(--text-caption);
+}
+
+/* A text-only action used inside table rows, where a bordered button would
+   fight the ledger lines. Still meets the 48px tap target. */
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0 8px;
+  min-height: var(--tap-target);
+  color: var(--ledger-green);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-link--danger {
+  color: var(--rust);
+}
+
+.btn-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   Status badge (design.md §5) — 12% fill of its token, 100% text.
+   --------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-badge);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.badge--draft {
+  background: var(--graphite-12);
+  color: var(--graphite);
+}
+
+.badge--approved {
+  background: var(--ledger-green-12);
+  color: var(--ledger-green);
+}
+
+.badge--warning {
+  background: var(--amber-12);
+  color: var(--amber);
+}
+
+.badge--error {
+  background: var(--rust-12);
+  color: var(--rust);
+}
+
+.badge--inactive {
+  background: var(--graphite-12);
+  color: var(--graphite);
+}
+
+.badge--active {
+  background: var(--ledger-green-12);
+  color: var(--ledger-green);
+}
+
+/* ---------------------------------------------------------------------------
+   Cards & stat tiles (design.md §5)
+   --------------------------------------------------------------------------- */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+/* minmax(0, 1fr) rather than 1fr: a bare `1fr` track is min-width:auto, so it
+   refuses to shrink below its content. A money figure is mono and holds a
+   non-breaking space (Intl emits "KES 47,500.00"), making it one unbreakable
+   token — with `1fr` that token sets the floor for every column and pushes the
+   grid past the viewport. minmax(0, …) lets the track shrink instead. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* Four money tiles need real room. Below this the row is too tight for a
+   20px mono figure, so drop to two-by-two early rather than at the phone
+   breakpoint. */
+@media (max-width: 1200px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat-tile {
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 18px 20px 16px;
+  /* No shadow — hairlines do the depth work. */
+}
+
+.stat-tile__label {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+}
+
+.stat-tile__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.stat-tile__note {
+  margin-top: 6px;
+  font-size: var(--text-caption);
+  color: var(--graphite);
+}
+
+/* ---------------------------------------------------------------------------
+   Tables / ledger rows (design.md §5)
+   No zebra striping, no cell borders — only a hairline under each row.
+   --------------------------------------------------------------------------- */
+.table-wrap {
+  overflow-x: auto; /* wide tables scroll themselves; the page never does */
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+  height: var(--tap-target); /* thumb-accurate on mobile */
+  vertical-align: middle;
+}
+
+.table td:first-child,
+.table th:first-child {
+  padding-left: 0;
+}
+
+.table td:last-child,
+.table th:last-child {
+  padding-right: 0;
+}
+
+/* Money columns right-aligned, mono, tabular. */
+.table .num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table th.num {
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+   Forms (design.md §5) — single column, 24px between fields, label above,
+   hairline underline inputs rather than boxed fields.
+   --------------------------------------------------------------------------- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 420px;
+}
+
+.form--wide {
+  max-width: 100%;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite);
+}
+
+.field__input {
+  min-height: var(--tap-target);
+  padding: 8px 2px;
+  border: none;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  border-radius: 0;
+}
+
+.field__input::placeholder {
+  color: var(--graphite);
+}
+
+.field__input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--ledger-green);
+  padding-bottom: 7px; /* compensate the 1px border growth — no reflow */
+}
+
+.field__input:focus-visible {
+  outline: none; /* the green underline is the focus signal here */
+}
+
+/* Amounts typed into a form are still money — same mono treatment. */
+.field__input--money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.field__error {
+  font-size: var(--text-caption);
+  color: var(--rust);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Feedback: errors, empty states, loading
+   --------------------------------------------------------------------------- */
+.alert {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: var(--text-body);
+  border: 1px solid;
+}
+
+.alert--error {
+  background: var(--rust-12);
+  border-color: rgba(172, 59, 42, 0.25);
+  color: var(--rust);
+}
+
+.alert--warning {
+  background: var(--amber-12);
+  border-color: rgba(180, 119, 15, 0.25);
+  color: var(--amber);
+}
+
+/* Plain, direct, an invitation rather than a dead end (design.md §5). */
+.empty-state {
+  padding: 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  color: var(--graphite);
+}
+
+.loading {
+  padding: 32px 0;
+  color: var(--graphite);
+}
+
+/* ---------------------------------------------------------------------------
+   Dialog (confirm) — same card treatment as everything else: no shadow.
+   --------------------------------------------------------------------------- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 32, 30, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--paper-solid);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+}
+
+.dialog__title {
+  font-size: var(--text-section);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dialog__body {
+  color: var(--graphite);
+  margin-bottom: 24px;
+}
+
+.dialog__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------------------------
+   Payroll draft table (design.md §5) — the core screen.
+   --------------------------------------------------------------------------- */
+
+/* Bounded height is what makes position:sticky do anything: the header and the
+   totals footer pin against this container while a long employee list scrolls. */
+.payroll-scroll {
+  overflow: auto;
+  max-height: 62vh;
+}
+
+.payroll-table {
+  width: 100%;
+  border-collapse: separate; /* `collapse` drops borders on sticky cells */
+  border-spacing: 0;
+}
+
+.payroll-table th,
+.payroll-table td {
+  padding: 10px 12px;
+  height: var(--tap-target);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+  background: var(--paper-solid); /* opaque, so scrolled rows don't bleed through */
+}
+
+.payroll-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.payroll-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  font-weight: 600;
+  border-top: 1px solid var(--hairline);
+  border-bottom: none;
+}
+
+.payroll-table .num,
+.payroll-table th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.payroll-table th.num {
+  font-family: var(--font-ui);
+}
+
+.payroll-table .col-net {
+  font-weight: 600; /* design.md: net salary is the bold column */
+}
+
+/* The editable cell. No box — just the value, until it's focused (design.md §5:
+   "signals 'you can change this' without a heavy input box breaking the table's
+   clean rows"). */
+.cell-input {
+  width: 100%;
+  min-width: 96px;
+  min-height: 36px;
+  padding: 4px 2px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-body);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+
+.cell-input:hover:not(:disabled) {
+  border-bottom-color: var(--hairline);
+}
+
+.cell-input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--ledger-green);
+  padding-bottom: 3px; /* absorb the 1px border growth — the row never shifts */
+}
+
+.cell-input:disabled {
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink); /* iOS greys disabled inputs otherwise */
+  opacity: 1;
+}
+
+/* Hide the number spinners — they're a mis-click away from silently changing a
+   payroll figure. */
+.cell-input::-webkit-outer-spin-button,
+.cell-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cell-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 200ms highlight flash on recalculation — a deliberate confirmation that the
+   system heard the change, not decoration (design.md §5/§6). */
+.flash {
+  animation: flash-cell var(--flash) ease-out;
+}
+
+@keyframes flash-cell {
+  from {
+    background: var(--ledger-green-12);
+  }
+  to {
+    background: var(--paper-solid);
+  }
+}
+
+.row-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: var(--text-caption);
+  color: var(--amber);
+}
+
+.autosave-note {
+  font-size: var(--text-caption);
+  color: var(--graphite);
+  min-height: 18px;
+}
+
+/* A single checkmark draw-in on success only, ~400ms (design.md §6). */
+.check-mark {
+  stroke: var(--ledger-green);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: check-draw 400ms ease-out forwards;
+}
+
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Monthly analysis chart (design.md §5)
+   --------------------------------------------------------------------------- */
+
+/* The breakdown strip: three inline figures separated by hairline verticals,
+   not boxed. It is what actually answers "how much did I spend this month" —
+   the chart itself only carries shape and proportion. */
+.breakdown {
+  display: flex;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+}
+
+.breakdown__item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The hairline verticals — dividers between figures, so no box is needed. */
+.breakdown__item + .breakdown__item {
+  padding-left: 24px;
+  border-left: 1px solid var(--hairline);
+}
+
+/* The caption doubles as the legend entry, so the swatch needs to sit beside the
+   label rather than jammed against it. */
+.breakdown .caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breakdown__value {
+  margin-top: 6px;
+  font-size: 18px;
+  color: var(--ink);
+}
+
+/* Series identity beside the label, so it never rests on color alone. */
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.swatch--empty {
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+.run-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.run-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid var(--hairline); /* the ledger line */
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  color: var(--ink);
+}
+
+.run-item:hover {
+  background: rgba(28, 32, 30, 0.03);
+}
+
+.run-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile — the primary design target (design.md §4, §8)
+   --------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .app-main {
+    padding: 20px 16px calc(var(--bottom-bar-h) + 24px); /* clear the tab bar */
+  }
+
+  .page-title {
+    font-size: 22px;
+  }
+
+  /* Five destinations, always visible, never hidden behind a tap. */
+  .bottom-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-bar-h);
+    background: var(--paper-solid);
+    border-top: 1px solid var(--hairline);
+    z-index: 40;
+  }
+
+  .bottom-bar__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-decoration: none;
+    color: var(--graphite);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .bottom-bar__item--active {
+    color: var(--ledger-green);
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* stacked two-by-two */
+  }
+
+  /* On a phone the tile has ~131px of content box. A 20px mono figure needs far
+     more than that, so step the figure down to 15px — the floor of design.md's
+     15–20px data range — and tighten the padding to buy back width. */
+  .stat-tile {
+    padding: 16px 14px 14px;
+  }
+
+  .stat-tile__value {
+    font-size: 15px;
+  }
+
+  .form {
+    max-width: 100%;
+  }
+
+  /* Three figures side by side is too tight for a phone; stack them and move
+     the hairline from vertical to horizontal so the strip still reads as one
+     ruled block rather than three cards. */
+  .breakdown {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .breakdown__item + .breakdown__item {
+    padding-left: 0;
+    padding-top: 12px;
+    border-left: none;
+    border-top: 1px solid var(--hairline);
+  }
+
+  /* The draft table is the one screen that must stay a table on mobile — the
+     row-by-row comparison is the point. It scrolls sideways within its own
+     container instead of collapsing into cards. */
+  .payroll-scroll {
+    max-height: 70vh;
+  }
+}

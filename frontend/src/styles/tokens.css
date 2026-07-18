@@ -1,0 +1,60 @@
+/* Design tokens — the single source of truth for the system's look.
+   Every value here traces directly to design.md §2 (Color) and §3 (Typography).
+   Nothing in the app should hardcode a hex or a font stack; if a value is needed
+   twice, it belongs here. */
+
+:root {
+  /* --- Color (design.md §2) --- */
+  --paper: #f7f7f4; /* app background */
+  --ink: #1c201e; /* primary text */
+  --ledger-green: #2f5d50; /* the one accent */
+  --graphite: #6e756f; /* secondary text only, never critical body copy */
+  --sand: #c9bfa8; /* neutral second data series (deductions) */
+  --hairline: #dee1db; /* every rule, border, row divider */
+  --amber: #b4770f; /* non-blocking warnings */
+  --rust: #ac3b2a; /* hard errors only */
+
+  /* Badge fills: the token at 12% opacity, text at 100% (design.md §5). */
+  --graphite-12: rgba(110, 117, 111, 0.12);
+  --ledger-green-12: rgba(47, 93, 80, 0.12);
+  --amber-12: rgba(180, 119, 15, 0.12);
+  --rust-12: rgba(172, 59, 42, 0.12);
+
+  /* Surface used for sticky rows/dialogs — opaque Paper, so content scrolling
+     underneath a sticky header never bleeds through. */
+  --paper-solid: #f7f7f4;
+  --white: #ffffff;
+
+  /* --- Typography (design.md §3) --- */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+
+  --text-title: 28px; /* page title / 600 */
+  --text-section: 18px; /* section header / 600 */
+  --text-body: 15px; /* body / 400 */
+  --text-caption: 13px; /* caption+label / 500, uppercase, +0.04em */
+  --text-badge: 12px;
+
+  /* --- Layout --- */
+  --sidebar-w: 220px;
+  --content-margin: 48px;
+  --tap-target: 48px; /* design.md §8 minimum, phone-first */
+  --radius: 6px; /* design.md §5 */
+  --bottom-bar-h: 64px;
+
+  /* --- Motion (design.md §6) --- */
+  --fade: 150ms;
+  --flash: 200ms;
+}
+
+/* design.md §6/§8: every animation is a nice-to-have, never load-bearing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
