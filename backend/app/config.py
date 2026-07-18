@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed CORS origins
     CORS_ORIGINS: str = "http://localhost:5173"
 
+    # Path to a CA cert file, required by managed MySQL providers that enforce
+    # TLS (e.g. Aiven). Unset for local dev, where MySQL has no TLS at all.
+    DB_SSL_CA: str | None = None
+
     @cached_property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

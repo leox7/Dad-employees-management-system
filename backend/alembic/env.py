@@ -7,7 +7,7 @@ from alembic import context
 # Application config + models. Importing app.models registers every table on
 # Base.metadata so autogenerate can diff models against the live schema.
 from app.config import settings
-from app.db import Base
+from app.db import Base, get_connect_args
 import app.models  # noqa: F401  (side-effect import: populates Base.metadata)
 
 config = context.config
@@ -39,7 +39,9 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = create_engine(DATABASE_URL, poolclass=pool.NullPool, future=True)
+    connectable = create_engine(
+        DATABASE_URL, poolclass=pool.NullPool, future=True, connect_args=get_connect_args()
+    )
 
     with connectable.connect() as connection:
         context.configure(
