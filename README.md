@@ -139,9 +139,26 @@ excel/
   payroll_export.xlsx   Reference bank bulk-upload template
 ```
 
-## Notes
+Copyright (c) 2026 Leon John Makau. All Rights Reserved.
 
-- Never commit `backend/.env` or `frontend/.env` — both are git-ignored.
-  `.env.example` in each directory documents the required keys.
-- `.claude/` (planning notes) is intentionally git-ignored and not part of the
-  shipped project.
+This repository, including all source code, documentation, database
+schema, design assets, and associated files (the "Software"), is made
+publicly viewable on GitHub for portfolio and demonstration purposes
+only.
+
+No permission is granted to any person obtaining access to this
+repository to use, copy, modify, merge, publish, distribute,
+sublicense, deploy, or sell copies of the Software, in whole or in
+part, for any purpose, without the prior written permission of the
+copyright holder.
+
+Viewing or forking this repository does not constitute a grant of any
+license, express or implied, to the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS
+USE.
+
+For permission requests, contact: leonjohn7co@gmail.com
+
