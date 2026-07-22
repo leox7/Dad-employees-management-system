@@ -104,17 +104,25 @@ API docs (interactive): http://127.0.0.1:8000/docs
 - **Loans** are manual and long-lived. `outstanding_amount` is a cached,
   server-maintained balance — every repayment (manual or via payroll) goes
   through one function that keeps it correct.
-- **Advances** are automatic and short-lived — tied to one specific
-  payroll month, always deducted in full, never partially.
+- **Advances** carry a running `outstanding_amount` balance, just like loans. The
+  balance is only drawn down by the payroll deduction (oldest advance first) on
+  approve — there is no manual repay screen — and whatever dad doesn't take stays
+  outstanding for a later month.
 - **Payroll runs** have exactly two real states: `draft → approved`. A draft
-  can be freely edited or scrapped; approving is the one irreversible action —
-  it creates loan repayments (oldest loan first), tags consumed advances, and
-  unlocks the Excel export. Nothing financial happens until that moment.
+  can be freely edited or scrapped; both the loan and advance deductions are
+  pre-filled with the employee's outstanding balances and dad edits them down before
+  approving. Approving is the one irreversible action — it draws down loans and
+  advances (oldest first) and unlocks the Excel export. Nothing financial happens
+  until that moment.
 - **Currency is KES throughout** — API, UI, and the Excel export all agree on
   the label (`KES`, not the locale's `Ksh` symbol).
 - **Excel export** mirrors the bank's bulk-upload template (`excel/payroll_export.xlsx`):
   a Total row and two audit "Check" rows (deductions total, and a
-  gross − deductions = net reconciliation) ship alongside the per-employee data.
+  gross − deductions = net reconciliation) ship alongside the per-employee data,
+  followed by a **Salary Disbursement Summary** table — the bank's actual upload
+  payload: one row per employee with Phone Number, Amount (a stored value equal to
+  that employee's Net Salary above, plain number with no "KES" — the bank reads the
+  raw cells and doesn't recalculate formulas), and a fixed "salary" comment.
 
 ## Project structure
 

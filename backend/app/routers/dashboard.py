@@ -65,11 +65,11 @@ def summary(db: Session = Depends(get_db)) -> DashboardSummary:
         ).scalar_one()
     )
 
-    total_unconsumed_advances = to_money(
+    # Advances now carry a running balance, so the headline mirrors loans: the total
+    # still to be deducted across everyone.
+    total_outstanding_advances = to_money(
         db.execute(
-            select(func.coalesce(func.sum(SalaryAdvance.amount), 0)).where(
-                SalaryAdvance.payroll_run_id.is_(None)
-            )
+            select(func.coalesce(func.sum(SalaryAdvance.outstanding_amount), 0))
         ).scalar_one()
     )
 
@@ -80,7 +80,7 @@ def summary(db: Session = Depends(get_db)) -> DashboardSummary:
         current_month_payroll_total=current_month_total,
         current_month_has_approved_run=current_run is not None,
         total_outstanding_loans=total_outstanding_loans,
-        total_unconsumed_advances=total_unconsumed_advances,
+        total_outstanding_advances=total_outstanding_advances,
     )
 
 

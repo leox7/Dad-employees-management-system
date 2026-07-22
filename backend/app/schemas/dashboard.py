@@ -15,7 +15,9 @@ class DashboardSummary(BaseModel):
     current_month_payroll_total: Decimal
     current_month_has_approved_run: bool
     total_outstanding_loans: Decimal
-    total_unconsumed_advances: Decimal
+    # Sum of advance balances still to be deducted across all employees — the advance
+    # parallel to total_outstanding_loans.
+    total_outstanding_advances: Decimal
 
 
 class MonthlyTrendItem(BaseModel):

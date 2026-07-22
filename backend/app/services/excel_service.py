@@ -2,7 +2,12 @@
 
 Layout mirrors excel/payroll_export.xlsx (the bank's bulk-upload template): sheet
 "Payroll Export", title block in rows 1-2, headers on row 5, data from row 6, a
-bold Total row immediately after the data, then two "Check:" audit rows.
+bold Total row immediately after the data, then two "Check:" audit rows, and finally
+a "Salary Disbursement Summary" table — one row per employee, Phone Number | Amount |
+Comment. This table is the bank's actual bulk-upload payload: it is ingested from the
+raw cells and NOT recalculated, so Amount is a stored value equal to that employee's
+Net Salary above (formulas would read blank), formatted as a plain number with no
+"KES" label. Comment is the fixed narration "salary".
 
 Two deliberate differences from that template file:
 
@@ -35,6 +40,9 @@ from app.models import Employee, PayrollLine, PayrollRun
 from app.money import to_money
 
 MONEY_FORMAT = '#,##0.00" KES"'
+# Bank-upload amounts: plain number, two decimals, no currency label and no thousands
+# separator (a comma could trip a raw CSV/cell parser).
+PLAIN_AMOUNT_FORMAT = "0.00"
 
 HEADERS = [
     "Employee Name",
@@ -82,6 +90,9 @@ def build_payroll_export(db: Session, run: PayrollRun) -> BytesIO:
     # so there is no SUM-over-an-empty-range edge case when a run has no lines.
     totals = {3: _ZERO, 4: _ZERO, 5: _ZERO, 6: _ZERO}
 
+    # (phone, net) per employee, in table order — feeds the summary below.
+    summary_entries: list[tuple[str, Decimal]] = []
+
     row_num = FIRST_DATA_ROW
     for line, name, phone in rows:
         ws.cell(row=row_num, column=1, value=name)
@@ -96,6 +107,7 @@ def build_payroll_export(db: Session, run: PayrollRun) -> BytesIO:
             cell = ws.cell(row=row_num, column=col, value=float(value))
             cell.number_format = MONEY_FORMAT
             totals[col] += to_money(value)
+        summary_entries.append((phone, line.net_salary))
         row_num += 1
 
     # Total row, immediately after the data (matches the template's layout).
@@ -126,6 +138,29 @@ def build_payroll_export(db: Session, run: PayrollRun) -> BytesIO:
             '"OK","MISMATCH")'
         ),
     )
+
+    # Salary Disbursement Summary — the bank-upload table. Amount is a stored value
+    # equal to that employee's Net Salary above (plain number, no "KES"): the bank
+    # reads these raw cells and does not recalculate, so — like the detail numbers —
+    # it must be a value, never a =F{row} reference. Comment is the fixed "salary".
+    summary_title_row = reconcile_row + 2
+    stitle = ws.cell(
+        row=summary_title_row, column=1, value="Salary Disbursement Summary"
+    )
+    stitle.font = Font(bold=True)
+
+    summary_header_row = summary_title_row + 1
+    for col, header in ((1, "Phone Number"), (2, "Amount"), (3, "Comment")):
+        cell = ws.cell(row=summary_header_row, column=col, value=header)
+        cell.font = Font(bold=True)
+
+    summary_row = summary_header_row + 1
+    for phone, net in summary_entries:
+        ws.cell(row=summary_row, column=1, value=phone)
+        amount_cell = ws.cell(row=summary_row, column=2, value=float(net))
+        amount_cell.number_format = PLAIN_AMOUNT_FORMAT
+        ws.cell(row=summary_row, column=3, value="salary")
+        summary_row += 1
 
     for col, width in COLUMN_WIDTHS.items():
         ws.column_dimensions[col].width = width

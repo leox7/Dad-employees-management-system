@@ -65,6 +65,25 @@ def apply_repayment(
     return repayment
 
 
+def reverse_run(db: Session, run_id: int) -> None:
+    """Undo every loan repayment a run made, in the caller's transaction.
+
+    For each repayment this run recorded, add the amount back to the loan's cached
+    outstanding_amount, flip status back to 'active' (a paid loan is re-opened), and
+    delete the ledger row. Manual repayments (payroll_run_id NULL) are untouched.
+    """
+    repayments = db.execute(
+        select(LoanRepayment).where(LoanRepayment.payroll_run_id == run_id)
+    ).scalars().all()
+    for repayment in repayments:
+        loan = db.get(Loan, repayment.loan_id)
+        if loan is not None:
+            loan.outstanding_amount = to_money(loan.outstanding_amount + repayment.amount)
+            loan.status = LoanStatus.active
+        db.delete(repayment)
+    db.flush()
+
+
 def get_outstanding_balance(db: Session, employee_id: int) -> Decimal:
     """Total outstanding across all of an employee's loans.
 

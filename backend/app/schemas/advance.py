@@ -19,6 +19,8 @@ class AdvanceOut(BaseModel):
     id: int
     employee_id: int
     amount: Decimal
+    # Amount still to be deducted; equals `amount` until a payroll draws it down.
+    outstanding_amount: Decimal
     advance_date: date
     month: int
     year: int

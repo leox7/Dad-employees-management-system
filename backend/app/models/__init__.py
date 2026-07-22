@@ -3,7 +3,7 @@ which Alembic's env.py relies on for autogenerate."""
 from app.models.user import User
 from app.models.employee import Employee, EmployeeStatus
 from app.models.loan import Loan, LoanRepayment, LoanStatus
-from app.models.advance import SalaryAdvance
+from app.models.advance import AdvanceRepayment, SalaryAdvance
 from app.models.payroll import PayrollLine, PayrollRun, PayrollRunStatus
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     "LoanRepayment",
     "LoanStatus",
     "SalaryAdvance",
+    "AdvanceRepayment",
     "PayrollLine",
     "PayrollRun",
     "PayrollRunStatus",

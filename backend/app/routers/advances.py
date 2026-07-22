@@ -1,10 +1,10 @@
 """Salary advance routes.
 
-- POST /advances                log a new advance (payroll_run_id NULL until consumed)
+- POST /advances                log a new advance (a reference record of cash given)
 - GET  /advances/employee/{id}  per-employee advance history
 
-No repay endpoint by design: an advance is always auto-deducted in full the month
-it applies to, never partially.
+Advances are a plain record: the deduction is entered manually on the payroll draft,
+so there is no repay endpoint and no balance tracked here.
 
 All routes require authentication.
 """
@@ -29,9 +29,11 @@ def create_advance(payload: AdvanceCreate, db: Session = Depends(get_db)) -> Sal
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found"
         )
+    amount = to_money(payload.amount)
     advance = SalaryAdvance(
         employee_id=payload.employee_id,
-        amount=to_money(payload.amount),
+        amount=amount,
+        outstanding_amount=amount,  # nothing deducted yet — full amount is owed
         advance_date=payload.advance_date,
         month=payload.month,
         year=payload.year,

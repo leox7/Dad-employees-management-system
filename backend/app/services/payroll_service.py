@@ -1,29 +1,40 @@
 """Payroll engine.
 
 Lifecycle: draft -> approved (two real states; 'locked' is inert). Approve is the
-single point where financial records are created (loan repayments via the shared
-loan_service writer + advance tagging) and it is all-or-nothing — one transaction,
-one commit.
+single point where cached balances move — loan repayments via the shared loan_service
+writer and advance draw-downs via advance_service — and it is all-or-nothing: one
+transaction, one commit.
+
+Deductions are both manual and both draw down a cached balance. loan_deduction and
+advance_deduction are entered on the draft; a new draft pre-fills each with the
+employee's outstanding loan / advance balance (the amount still owed) as a starting
+point, which dad can then edit down. On approve each deduction is applied FIFO
+(oldest first) against the employee's loans / advances, and whatever is left carries
+over to a future payroll.
 
 Immutability: gross_salary is a snapshot frozen at run creation, so later salary
-edits never leak into a past run. Every guard checks status: draft-edit/delete
-require 'draft'; GET has no guard (readable in any status).
+edits never leak into a past run. Status guards: draft-edit requires 'draft'; delete
+is allowed on a draft (no financial effect) or an approved run (its loan/advance
+draw-downs are rolled back first, so the month can be re-run); GET has no guard
+(readable in any status).
 
 Net recompute (`_recompute_net`) is one function reused by draft-save and approve
 — the single, highest-risk money calculation.
 
-Warning stability across approve: the "loan_deduction exceeds outstanding balance"
-flag is computed against the balance *as this run saw it*. For a draft that is just
-the current outstanding; for an approved run we add back the repayments this run
-made, so GET returns the same warning after approval as the last draft save showed.
+Warning stability across approve: the "deduction exceeds outstanding balance" flags
+(loan and advance) are computed against the balance *as this run saw it*. For a draft
+that is just the current outstanding; for an approved run we add back what this run
+drew down, so GET returns the same warning after approval as the last draft save
+showed.
 """
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AdvanceRepayment,
     Employee,
     EmployeeStatus,
     Loan,
@@ -41,7 +52,7 @@ from app.schemas.payroll import (
     PayrollLineOut,
     PayrollRunDetail,
 )
-from app.services import loan_service
+from app.services import advance_service, loan_service
 
 _ZERO = Decimal("0.00")
 
@@ -71,18 +82,6 @@ def _get_run(db: Session, run_id: int) -> PayrollRun:
 def _recompute_net(line: PayrollLine) -> Decimal:
     """The single net-pay formula. Advances and loans are both deductions."""
     return to_money(line.gross_salary - line.loan_deduction - line.advance_deduction)
-
-
-def _unconsumed_advance_total(db: Session, employee_id: int, month: int, year: int) -> Decimal:
-    total = db.execute(
-        select(func.coalesce(func.sum(SalaryAdvance.amount), 0)).where(
-            SalaryAdvance.employee_id == employee_id,
-            SalaryAdvance.month == month,
-            SalaryAdvance.year == year,
-            SalaryAdvance.payroll_run_id.is_(None),
-        )
-    ).scalar_one()
-    return to_money(total)
 
 
 def _current_outstanding(db: Session, employee_ids: list[int]) -> dict[int, Decimal]:
@@ -128,13 +127,68 @@ def _effective_outstanding(
     }
 
 
-def _line_warnings(line: PayrollLine, outstanding: Decimal) -> list[str]:
+def _current_advance_outstanding(
+    db: Session, employee_ids: list[int]
+) -> dict[int, Decimal]:
+    if not employee_ids:
+        return {}
+    rows = db.execute(
+        select(
+            SalaryAdvance.employee_id,
+            func.coalesce(func.sum(SalaryAdvance.outstanding_amount), 0),
+        )
+        .where(SalaryAdvance.employee_id.in_(employee_ids))
+        .group_by(SalaryAdvance.employee_id)
+    ).all()
+    return {emp_id: to_money(bal) for emp_id, bal in rows}
+
+
+def _advance_repaid_by_run(
+    db: Session, run_id: int, employee_ids: list[int]
+) -> dict[int, Decimal]:
+    if not employee_ids:
+        return {}
+    rows = db.execute(
+        select(SalaryAdvance.employee_id, func.coalesce(func.sum(AdvanceRepayment.amount), 0))
+        .select_from(AdvanceRepayment)
+        .join(SalaryAdvance, SalaryAdvance.id == AdvanceRepayment.advance_id)
+        .where(
+            AdvanceRepayment.payroll_run_id == run_id,
+            SalaryAdvance.employee_id.in_(employee_ids),
+        )
+        .group_by(SalaryAdvance.employee_id)
+    ).all()
+    return {emp_id: to_money(amt) for emp_id, amt in rows}
+
+
+def _effective_advance_outstanding(
+    db: Session, run_id: int, employee_ids: list[int]
+) -> dict[int, Decimal]:
+    """Advance balance as *this run* saw it: current balance plus whatever this run
+    drew down (from the advance_repayments ledger). For a draft (no draw-downs yet)
+    that equals the current balance; for an approved run it reconstructs the
+    pre-approval balance exactly — mirrors `_effective_outstanding` for loans."""
+    current = _current_advance_outstanding(db, employee_ids)
+    repaid = _advance_repaid_by_run(db, run_id, employee_ids)
+    return {
+        emp_id: to_money(current.get(emp_id, _ZERO) + repaid.get(emp_id, _ZERO))
+        for emp_id in employee_ids
+    }
+
+
+def _line_warnings(
+    line: PayrollLine, loan_outstanding: Decimal, advance_outstanding: Decimal
+) -> list[str]:
     warnings: list[str] = []
     if line.net_salary < 0:
         warnings.append("Net pay is negative")
-    if line.loan_deduction > outstanding:
+    if line.loan_deduction > loan_outstanding:
         warnings.append(
-            f"Loan deduction exceeds outstanding balance ({outstanding})"
+            f"Loan deduction exceeds outstanding balance ({loan_outstanding})"
+        )
+    if line.advance_deduction > advance_outstanding:
+        warnings.append(
+            f"Advance deduction exceeds remaining advance balance ({advance_outstanding})"
         )
     return warnings
 
@@ -147,7 +201,8 @@ def _build_detail(db: Session, run: PayrollRun) -> PayrollRunDetail:
         .order_by(Employee.name, PayrollLine.id)
     ).all()
     employee_ids = [line.employee_id for line, _ in rows]
-    outstanding = _effective_outstanding(db, run.id, employee_ids)
+    loan_outstanding = _effective_outstanding(db, run.id, employee_ids)
+    advance_outstanding = _effective_advance_outstanding(db, run.id, employee_ids)
 
     lines = [
         PayrollLineOut(
@@ -158,7 +213,11 @@ def _build_detail(db: Session, run: PayrollRun) -> PayrollRunDetail:
             loan_deduction=line.loan_deduction,
             advance_deduction=line.advance_deduction,
             net_salary=line.net_salary,
-            warnings=_line_warnings(line, outstanding.get(line.employee_id, _ZERO)),
+            warnings=_line_warnings(
+                line,
+                loan_outstanding.get(line.employee_id, _ZERO),
+                advance_outstanding.get(line.employee_id, _ZERO),
+            ),
         )
         for line, name in rows
     ]
@@ -188,7 +247,9 @@ def get_run_detail(db: Session, run_id: int) -> PayrollRunDetail:
 
 def create_run(db: Session, month: int, year: int) -> PayrollRunDetail:
     """Generate a draft run: one line per active employee, gross frozen from salary,
-    advances summed, loan_deduction blank. 409 if a run for month/year exists."""
+    and both loan_deduction and advance_deduction pre-filled with the employee's
+    outstanding loan / advance balance (dad edits them down from there). 409 if a run
+    for month/year exists."""
     existing = db.execute(
         select(PayrollRun).where(PayrollRun.month == month, PayrollRun.year == year)
     ).scalar_one_or_none()
@@ -205,16 +266,21 @@ def create_run(db: Session, month: int, year: int) -> PayrollRunDetail:
         .order_by(Employee.name, Employee.id)
     ).scalars().all()
 
+    employee_ids = [emp.id for emp in active_employees]
+    loan_outstanding = _current_outstanding(db, employee_ids)
+    advance_outstanding = _current_advance_outstanding(db, employee_ids)
+
     for emp in active_employees:
         gross = to_money(emp.salary)
-        advance_deduction = _unconsumed_advance_total(db, emp.id, month, year)
+        loan_deduction = loan_outstanding.get(emp.id, _ZERO)
+        advance_deduction = advance_outstanding.get(emp.id, _ZERO)
         line = PayrollLine(
             payroll_run_id=run.id,
             employee_id=emp.id,
             gross_salary=gross,
-            loan_deduction=_ZERO,
+            loan_deduction=loan_deduction,
             advance_deduction=advance_deduction,
-            net_salary=to_money(gross - advance_deduction),
+            net_salary=to_money(gross - loan_deduction - advance_deduction),
         )
         db.add(line)
 
@@ -223,7 +289,8 @@ def create_run(db: Session, month: int, year: int) -> PayrollRunDetail:
 
 
 def update_draft(db: Session, run_id: int, payload: PayrollDraftUpdate) -> PayrollRunDetail:
-    """Autosave loan_deduction edits and recompute net server-side. 409 unless draft."""
+    """Autosave loan_deduction and advance_deduction edits and recompute net
+    server-side. 409 unless draft."""
     run = _get_run(db, run_id)
     if run.status != PayrollRunStatus.draft:
         raise PayrollConflict("Only a draft run can be edited")
@@ -239,6 +306,7 @@ def update_draft(db: Session, run_id: int, payload: PayrollDraftUpdate) -> Payro
         if line is None:
             raise PayrollNotFound(f"Line {item.id} is not part of run {run_id}")
         line.loan_deduction = to_money(item.loan_deduction)
+        line.advance_deduction = to_money(item.advance_deduction)
         line.net_salary = _recompute_net(line)
 
     db.commit()
@@ -246,17 +314,26 @@ def update_draft(db: Session, run_id: int, payload: PayrollDraftUpdate) -> Payro
 
 
 def delete_run(db: Session, run_id: int) -> None:
-    """Scrap a draft run and its lines (cascade). 409 once approved."""
+    """Delete a run and its lines (cascade), in one transaction.
+
+    A draft has no financial effect, so it is simply removed. An approved run is
+    rolled back first: every loan repayment and advance draw-down it made is undone
+    (balances restored, ledger rows deleted) via the loan/advance services, *before*
+    the run row is deleted — order matters, because deleting the run would otherwise
+    SET NULL the ledger rows' payroll_run_id and lose the link. The month/year is
+    then free to be generated again."""
     run = _get_run(db, run_id)
-    if run.status != PayrollRunStatus.draft:
-        raise PayrollConflict("Only a draft run can be deleted")
+    if run.status == PayrollRunStatus.approved:
+        loan_service.reverse_run(db, run_id)
+        advance_service.reverse_run(db, run_id)
     db.delete(run)
     db.commit()
 
 
 def approve_run(db: Session, run_id: int) -> PayrollRunDetail:
-    """Approve a draft: create loan repayments (FIFO by date_taken), tag consumed
-    advances, set approved. Single transaction, all-or-nothing. 409 unless draft."""
+    """Approve a draft: draw down loans (FIFO by date_taken) and advances (FIFO by
+    advance_date), set approved. Single transaction, all-or-nothing. 409 unless
+    draft."""
     run = _get_run(db, run_id)
     if run.status != PayrollRunStatus.draft:
         raise PayrollConflict("Only a draft run can be approved")
@@ -295,17 +372,31 @@ def approve_run(db: Session, run_id: int) -> PayrollRunDetail:
             # non-blocking judgment call already surfaced live on draft save and again
             # via GET's warning; we do not silently swallow it by editing the line.
 
-        # Tag this employee's unconsumed advances for the run's month/year.
-        db.execute(
-            update(SalaryAdvance)
-            .where(
-                SalaryAdvance.employee_id == line.employee_id,
-                SalaryAdvance.month == run.month,
-                SalaryAdvance.year == run.year,
-                SalaryAdvance.payroll_run_id.is_(None),
-            )
-            .values(payroll_run_id=run.id)
-        )
+        if line.advance_deduction > 0:
+            # Same FIFO draw-down for advances: oldest first, capped at each advance's
+            # balance so it never goes negative. Whatever the deduction did not cover
+            # stays as outstanding, to be taken off a later payroll. The over-type
+            # case (deduction > total owed) is the same non-blocking judgment call as
+            # loans above, flagged by the "advance exceeds balance" warning.
+            remaining = to_money(line.advance_deduction)
+            open_advances = db.execute(
+                select(SalaryAdvance)
+                .where(
+                    SalaryAdvance.employee_id == line.employee_id,
+                    SalaryAdvance.outstanding_amount > 0,
+                )
+                .order_by(SalaryAdvance.advance_date.asc(), SalaryAdvance.id.asc())
+            ).scalars().all()
+            for advance in open_advances:
+                if remaining <= 0:
+                    break
+                take = min(remaining, advance.outstanding_amount)
+                if take <= 0:
+                    continue
+                advance_service.apply_deduction(
+                    db, advance.id, take, today, payroll_run_id=run.id
+                )
+                remaining = to_money(remaining - take)
 
     run.status = PayrollRunStatus.approved
     run.approved_at = datetime.now()

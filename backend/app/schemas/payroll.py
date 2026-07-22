@@ -21,11 +21,12 @@ class PayrollRunCreate(BaseModel):
 class PayrollLineDraftUpdate(BaseModel):
     id: int  # payroll_lines.id
     loan_deduction: Decimal = Field(ge=0)
+    advance_deduction: Decimal = Field(ge=0)
 
 
 class PayrollDraftUpdate(BaseModel):
-    """Autosave payload. Only `loan_deduction` is editable; gross_salary and
-    advance_deduction are system-generated and read-only."""
+    """Autosave payload. Both `loan_deduction` and `advance_deduction` are editable
+    and entered manually; only gross_salary is system-generated and read-only."""
 
     lines: list[PayrollLineDraftUpdate]
 

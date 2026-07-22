@@ -71,9 +71,9 @@ export default function Dashboard() {
                 note="Across all employees"
               />
               <StatTile
-                label="Advances Pending"
-                value={money(summary.total_unconsumed_advances)}
-                note="Not yet deducted from a payroll run"
+                label="Outstanding Advances"
+                value={money(summary.total_outstanding_advances)}
+                note="Still to be deducted, across all employees"
               />
             </div>
 

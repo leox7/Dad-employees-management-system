@@ -1,7 +1,8 @@
 import client from "./client";
 
-/* No repay endpoint by design: an advance is always auto-deducted in full in the
-   month it applies to, never partially. */
+/* Advances carry an outstanding balance (like loans), but there is no manual repay
+   endpoint: the balance is only drawn down by the payroll deduction dad enters on
+   the draft, which the server applies on approve. */
 export async function createAdvance(payload) {
   const { data } = await client.post("/advances", payload);
   return data;

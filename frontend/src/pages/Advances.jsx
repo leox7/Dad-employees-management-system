@@ -69,13 +69,12 @@ export default function Advances() {
     loadAdvances(employeeId);
   }, [employeeId, loadAdvances]);
 
-  /* An advance is "unconsumed" until a payroll run tags it — payroll_run_id is
-     the server's own marker for that, so this is a read, not a derivation. */
-  const unconsumedTotal = useMemo(
+  /* Display-only roll-up of the balance the server already tracks per advance — the
+     total still to be deducted from this employee, not a re-derivation. Mirrors the
+     Loans page's Total Outstanding tile. */
+  const outstandingTotal = useMemo(
     () =>
-      advances
-        .filter((adv) => adv.payroll_run_id === null)
-        .reduce((sum, adv) => sum + Number(adv.amount), 0),
+      advances.reduce((sum, adv) => sum + Number(adv.outstanding_amount), 0),
     [advances]
   );
 
@@ -134,10 +133,10 @@ export default function Advances() {
         ) : (
           <>
             <section className="stat-tile" style={{ maxWidth: 320 }}>
-              <div className="caption stat-tile__label">Not Yet Deducted</div>
-              <div className="stat-tile__value">{money(unconsumedTotal)}</div>
+              <div className="caption stat-tile__label">Outstanding Advance</div>
+              <div className="stat-tile__value">{money(outstandingTotal)}</div>
               <div className="stat-tile__note">
-                {selectedEmployee?.name} · comes off the next matching payroll run
+                {selectedEmployee?.name} · pre-fills the payroll deduction, edit as needed
               </div>
             </section>
 
@@ -192,11 +191,11 @@ export default function Advances() {
                   </Field>
 
                   {/* month/year are separate from advance_date on purpose: they
-                      decide which payroll run deducts this, which is not always
-                      the month it was handed over. */}
+                      note which payroll this advance relates to, which is not
+                      always the month it was handed over. */}
                   <Field
-                    label="Deduct From Payroll Month"
-                    hint="The full amount comes off that month's payroll — advances are never deducted partially."
+                    label="Applies To Payroll Month"
+                    hint="Just a note of which payroll this relates to — you enter the deduction manually on that payroll run."
                   >
                     <select
                       className="field__input"
@@ -262,8 +261,9 @@ export default function Advances() {
                   <thead>
                     <tr>
                       <th>Date Given</th>
-                      <th>Deducts From</th>
+                      <th>Applies To</th>
                       <th className="num">Amount (KES)</th>
+                      <th className="num">Remaining (KES)</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -275,13 +275,8 @@ export default function Advances() {
                           {monthYear(advance.month, advance.year)}
                         </td>
                         <td className="num">{amount(advance.amount)}</td>
-                        <td>
-                          {advance.payroll_run_id ? (
-                            <span className="badge badge--approved">Deducted</span>
-                          ) : (
-                            <span className="badge badge--draft">Pending</span>
-                          )}
-                        </td>
+                        <td className="num">{amount(advance.outstanding_amount)}</td>
+                        <td>{advanceStatusBadge(advance)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -293,4 +288,18 @@ export default function Advances() {
       </div>
     </>
   );
+}
+
+/* Derived from the balance the server tracks — no separate status column is stored.
+   Fully deducted (nothing left) · Not deducted (untouched) · Partly deducted. */
+function advanceStatusBadge(advance) {
+  const remaining = Number(advance.outstanding_amount);
+  const original = Number(advance.amount);
+  if (remaining <= 0) {
+    return <span className="badge badge--approved">Fully deducted</span>;
+  }
+  if (remaining >= original) {
+    return <span className="badge badge--draft">Not deducted</span>;
+  }
+  return <span className="badge badge--warning">Partly deducted</span>;
 }

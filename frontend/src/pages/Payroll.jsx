@@ -32,7 +32,7 @@ export default function Payroll() {
   const [year, setYear] = useState(now.getFullYear());
   const [creating, setCreating] = useState(false);
 
-  const [confirm, setConfirm] = useState(null); // 'approve' | 'scrap'
+  const [confirm, setConfirm] = useState(null); // 'approve' | 'scrap' | 'delete'
   const [busy, setBusy] = useState(false);
   const [approved, setApproved] = useState(false); // drives the checkmark
   const [exporting, setExporting] = useState(false);
@@ -120,7 +120,9 @@ export default function Payroll() {
     }
   }
 
-  async function handleScrap() {
+  // One delete path for both cases: a draft (nothing financial to undo) and an
+  // approved run (the server rolls back its loan/advance draw-downs first).
+  async function handleDelete() {
     setBusy(true);
     setError("");
     try {
@@ -130,7 +132,7 @@ export default function Payroll() {
       await loadHistory();
       navigate("/payroll");
     } catch (err) {
-      setError(errorMessage(err, "Could not scrap this draft."));
+      setError(errorMessage(err, "Could not delete this payroll run."));
       setConfirm(null);
     } finally {
       setBusy(false);
@@ -216,14 +218,23 @@ export default function Payroll() {
                       </button>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={handleExport}
-                      disabled={exporting}
-                    >
-                      {exporting ? "Preparing…" : "Export to Excel"}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--destructive"
+                        onClick={() => setConfirm("delete")}
+                      >
+                        Delete Run
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        onClick={handleExport}
+                        disabled={exporting}
+                      >
+                        {exporting ? "Preparing…" : "Export to Excel"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -238,7 +249,7 @@ export default function Payroll() {
           title="Approve payroll?"
           body={`This will lock ${
             run ? monthName(run.month) : "this month"
-          }'s payroll and cannot be undone. Loan repayments will be recorded, loan balances reduced, and this month's advances marked as deducted.`}
+          }'s payroll and cannot be undone. Loan repayments will be recorded and both loan and advance balances reduced by the amounts deducted here.`}
           confirmLabel="Approve Payroll"
           busy={busy}
           onConfirm={handleApprove}
@@ -252,7 +263,22 @@ export default function Payroll() {
           confirmLabel="Scrap Draft"
           confirmVariant="btn--destructive"
           busy={busy}
-          onConfirm={handleScrap}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirm(null)}
+        />
+
+        <ConfirmDialog
+          open={confirm === "delete"}
+          title="Delete this approved payroll?"
+          body={`This deletes ${
+            run ? monthYear(run.month, run.year) : "this run"
+          } and reverses everything it did: the loan repayments and advance deductions it made are undone and those balances restored to exactly what they were before approval. You can then generate ${
+            run ? monthName(run.month) : "the month"
+          } again from scratch.`}
+          confirmLabel="Delete & Revert"
+          confirmVariant="btn--destructive"
+          busy={busy}
+          onConfirm={handleDelete}
           onCancel={() => setConfirm(null)}
         />
       </>
@@ -288,7 +314,7 @@ export default function Payroll() {
 
             <Field
               label="Year"
-              hint="A draft is created for every active employee, with this month's advances already deducted."
+              hint="A draft is created for every active employee, with each one's outstanding loan and advance balances pre-filled in their columns — edit them down before approving."
             >
               <select
                 className="field__input"

@@ -17,11 +17,20 @@ import { ErrorNote, WarningBadge } from "./ui";
 
 const AUTOSAVE_MS = 600;
 
-/* Local input state is keyed by line id and seeded from the server. It is not
-   re-seeded on every response on purpose: doing so would yank the digits out
-   from under dad's cursor mid-typing when an autosave lands. */
+/* Local input state is keyed by line id, each holding both editable deductions,
+   seeded from the server. It is not re-seeded on every response on purpose: doing
+   so would yank the digits out from under dad's cursor mid-typing when an autosave
+   lands. */
 const seedValues = (lines) =>
-  Object.fromEntries(lines.map((line) => [line.id, String(line.loan_deduction)]));
+  Object.fromEntries(
+    lines.map((line) => [
+      line.id,
+      {
+        advance: String(line.advance_deduction),
+        loan: String(line.loan_deduction),
+      },
+    ])
+  );
 
 /* Exposes flush() so the parent can force a pending autosave to land *before*
    approving. Without it, typing a deduction and immediately hitting Approve
@@ -53,12 +62,16 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
 
   const save = useCallback(
     async (next) => {
-      const payload = run.lines.map((line) => ({
-        id: line.id,
+      const payload = run.lines.map((line) => {
+        const entry = next[line.id];
         // An empty input means zero, not "leave it alone" — the server requires
         // a value per line it's asked to update.
-        loan_deduction: next[line.id] === "" ? "0" : next[line.id],
-      }));
+        return {
+          id: line.id,
+          advance_deduction: entry.advance === "" ? "0" : entry.advance,
+          loan_deduction: entry.loan === "" ? "0" : entry.loan,
+        };
+      });
 
       setSaving(true);
       setError("");
@@ -93,8 +106,8 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  function handleChange(lineId, raw) {
-    const next = { ...values, [lineId]: raw };
+  function handleChange(lineId, field, raw) {
+    const next = { ...values, [lineId]: { ...values[lineId], [field]: raw } };
     setValues(next);
     pending.current = next;
 
@@ -120,15 +133,23 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
   const rows = useMemo(
     () =>
       run.lines.map((line) => {
-        const raw = values[line.id] ?? String(line.loan_deduction);
-        const loanDeduction = raw === "" ? "0" : raw;
-        const net = netCents(line.gross_salary, loanDeduction, line.advance_deduction);
+        const entry = values[line.id] ?? {
+          advance: String(line.advance_deduction),
+          loan: String(line.loan_deduction),
+        };
+        const advanceRaw = entry.advance;
+        const loanRaw = entry.loan;
+        const advanceDeduction = advanceRaw === "" ? "0" : advanceRaw;
+        const loanDeduction = loanRaw === "" ? "0" : loanRaw;
+        const net = netCents(line.gross_salary, loanDeduction, advanceDeduction);
         return {
           line,
-          raw,
+          advanceRaw,
+          loanRaw,
+          advanceDeduction,
           loanDeduction,
           net,
-          warnings: lineWarnings(line, net, loanDeduction),
+          warnings: lineWarnings(line, net, loanDeduction, advanceDeduction),
         };
       }),
     [run.lines, values]
@@ -138,7 +159,7 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
     () => ({
       gross: sumCents(rows.map((r) => r.line.gross_salary)),
       loan: sumCents(rows.map((r) => r.loanDeduction)),
-      advance: sumCents(rows.map((r) => r.line.advance_deduction)),
+      advance: sumCents(rows.map((r) => r.advanceDeduction)),
       net: rows.reduce((sum, r) => sum + r.net, 0),
     }),
     [rows]
@@ -169,7 +190,7 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ line, raw, net, warnings }) => (
+            {rows.map(({ line, advanceRaw, loanRaw, net, warnings }) => (
               <tr key={line.id}>
                 <td>
                   {line.employee_name ?? `Employee #${line.employee_id}`}
@@ -181,7 +202,6 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
                   ) : null}
                 </td>
                 <td className="num">{amount(line.gross_salary)}</td>
-                <td className="num">{amount(line.advance_deduction)}</td>
                 <td className="num">
                   <input
                     className="cell-input"
@@ -189,10 +209,24 @@ const PayrollDraftTable = forwardRef(function PayrollDraftTable(
                     step="0.01"
                     min="0"
                     inputMode="decimal"
-                    value={raw}
+                    value={advanceRaw}
+                    disabled={readOnly}
+                    aria-label={`Advance deduction for ${line.employee_name}`}
+                    onChange={(e) => handleChange(line.id, "advance", e.target.value)}
+                    onBlur={handleBlur}
+                  />
+                </td>
+                <td className="num">
+                  <input
+                    className="cell-input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    inputMode="decimal"
+                    value={loanRaw}
                     disabled={readOnly}
                     aria-label={`Loan deduction for ${line.employee_name}`}
-                    onChange={(e) => handleChange(line.id, e.target.value)}
+                    onChange={(e) => handleChange(line.id, "loan", e.target.value)}
                     onBlur={handleBlur}
                   />
                 </td>

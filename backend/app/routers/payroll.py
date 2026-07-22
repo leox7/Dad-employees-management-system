@@ -4,8 +4,8 @@
 - GET    /payroll/history          list runs with summary totals
 - GET    /payroll/{id}             read a run + lines (+ live warnings); no status guard
 - PUT    /payroll/{id}/draft       autosave loan_deduction edits (409 unless draft)
-- POST   /payroll/{id}/approve     create repayments + tag advances, approve (409 unless draft)
-- DELETE /payroll/{id}             scrap a draft run (409 once approved)
+- POST   /payroll/{id}/approve     draw down loans + advances, approve (409 unless draft)
+- DELETE /payroll/{id}             delete a run; an approved run is rolled back first
 - GET    /payroll/{id}/export      Excel export of an approved run (409 unless approved)
 
 `/history` is declared before `/{run_id}` so it is not captured by the int path param.

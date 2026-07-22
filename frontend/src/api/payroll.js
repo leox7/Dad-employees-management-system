@@ -18,8 +18,9 @@ export async function getRun(runId) {
   return data;
 }
 
-/* Autosave. Only loan_deduction is editable; net_salary is always recomputed
-   server-side, so the response — not our local guess — is the source of truth. */
+/* Autosave. loan_deduction and advance_deduction are both editable; net_salary is
+   always recomputed server-side, so the response — not our local guess — is the
+   source of truth. */
 export async function saveDraft(runId, lines) {
   const { data } = await client.put(`/payroll/${runId}/draft`, { lines });
   return data;
